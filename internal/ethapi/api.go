@@ -626,6 +626,7 @@ func (s *BlockChainAPI) BlockNumber() hexutil.Uint64 {
 }
 
 type BlockActivitiesResult struct {
+	BaseFee    uint64            `json:"baseFee"`
 	TxCount    uint64            `json:"txCount"`
 	Activities []*types.Activity `json:"activities"`
 }
@@ -651,6 +652,7 @@ func (s *BlockChainAPI) GetBlockActivities(ctx context.Context, blockNrOrHash rp
 	}
 
 	return &BlockActivitiesResult{
+		BaseFee:    block.BaseFee().Uint64(),
 		TxCount:    uint64(len(block.Transactions())),
 		Activities: activities,
 	}, nil
