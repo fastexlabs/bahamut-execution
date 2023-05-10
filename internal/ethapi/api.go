@@ -658,15 +658,6 @@ func (s *BlockChainAPI) GetBlockActivities(ctx context.Context, blockNrOrHash rp
 	}, nil
 }
 
-func (s *BlockChainAPI) GetActivity(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (hexutil.Uint64, error) {
-	state, _, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
-	if state == nil || err != nil {
-		return hexutil.Uint64(0), err
-	}
-
-	return hexutil.Uint64(state.GetActivity(address)), state.Error()
-}
-
 // GetBalance returns the amount of wei for the given address in the state of the
 // given block number. The rpc.LatestBlockNumber and rpc.PendingBlockNumber meta
 // block numbers are also allowed.

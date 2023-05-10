@@ -306,16 +306,6 @@ func (s *StateDB) Empty(addr common.Address) bool {
 	return so == nil || so.empty()
 }
 
-// GetActivity retrieves the activity from the given address or 0 if objects not found
-func (s *StateDB) GetActivity(addr common.Address) uint64 {
-	stateObject := s.getStateObject(addr)
-	if stateObject != nil {
-		return stateObject.Activity()
-	}
-
-	return 0
-}
-
 // GetBalance retrieves the balance from the given address or 0 if object not found
 func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 	stateObject := s.getStateObject(addr)
@@ -433,29 +423,6 @@ func (s *StateDB) HasSuicided(addr common.Address) bool {
  * SETTERS
  */
 
-// AddActivity adds activity to the account associated with addr.
-func (s *StateDB) AddActivity(addr common.Address, amount uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.AddActivity(amount)
-	}
-}
-
-// SubActivity subtracts activity from the account associated with addr.
-func (s *StateDB) SubActivity(addr common.Address, amount uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SubActivity(amount)
-	}
-}
-
-func (s *StateDB) SetActivity(addr common.Address, amount uint64) {
-	stateObject := s.GetOrNewStateObject(addr)
-	if stateObject != nil {
-		stateObject.SetActivity(amount)
-	}
-}
-
 // AddBalance adds amount to the account associated with addr.
 func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 	stateObject := s.GetOrNewStateObject(addr)
@@ -551,7 +518,7 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 	// enough to track account updates at commit time, deletions need tracking
 	// at transaction boundary level to ensure we capture state clearing.
 	if s.snap != nil {
-		s.snapAccounts[obj.addrHash] = snapshot.SlimAccountRLP(obj.data.Nonce, obj.data.Balance, obj.data.Root, obj.data.CodeHash, obj.data.Activity)
+		s.snapAccounts[obj.addrHash] = snapshot.SlimAccountRLP(obj.data.Nonce, obj.data.Balance, obj.data.Root, obj.data.CodeHash)
 	}
 }
 
@@ -604,8 +571,6 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 				Balance:  acc.Balance,
 				CodeHash: acc.CodeHash,
 				Root:     common.BytesToHash(acc.Root),
-
-				Activity: acc.Activity,
 			}
 			if len(data.CodeHash) == 0 {
 				data.CodeHash = emptyCodeHash

@@ -43,8 +43,10 @@ The state transitioning model does all the necessary work to work out a valid ne
 3) Create a new state object if the recipient is \0*32
 4) Value transfer
 == If contract creation ==
-  4a) Attempt to run transaction data
-  4b) If valid, use result as code for the new state object
+
+	4a) Attempt to run transaction data
+	4b) If valid, use result as code for the new state object
+
 == end ==
 5) Run Script section
 6) Derive new state root
@@ -263,13 +265,13 @@ func (st *StateTransition) preCheck() error {
 // TransitionDb will transition the state by applying the current message and
 // returning the evm execution result with following fields.
 //
-// - used gas:
-//      total gas used (including gas being refunded)
-// - returndata:
-//      the returned data from evm
-// - concrete execution error:
-//      various **EVM** error which aborts the execution,
-//      e.g. ErrOutOfGas, ErrExecutionReverted
+//   - used gas:
+//     total gas used (including gas being refunded)
+//   - returndata:
+//     the returned data from evm
+//   - concrete execution error:
+//     various **EVM** error which aborts the execution,
+//     e.g. ErrOutOfGas, ErrExecutionReverted
 //
 // However if any consensus issue encountered, return the error directly with
 // nil evm execution result.
@@ -334,10 +336,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		ret, st.gas, vmerr = st.evm.Call(sender, st.to(), st.data, st.gas, st.value)
 	}
 
-	for _, act := range st.state.GetCurrentActivities() {
-		log.Debug("Activities before refund", "address", act.Address, "activity", act.Activity, "delta", act.DeltaActivity)
-	}
-
 	if !rules.IsLondon {
 		// Before EIP-3529: refunds were capped to gasUsed / 2
 		st.refundGas(params.RefundQuotient)
@@ -348,10 +346,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	effectiveTip := st.gasPrice
 	if rules.IsLondon {
 		effectiveTip = cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
-	}
-
-	for _, act := range st.state.GetCurrentActivities() {
-		log.Debug("Activities after refund", "address", act.Address, "activity", act.Activity, "delta", act.DeltaActivity)
 	}
 
 	if st.evm.Config.NoBaseFee && st.gasFeeCap.Sign() == 0 && st.gasTipCap.Sign() == 0 {
@@ -400,33 +394,25 @@ func (st *StateTransition) refundActivity(refund uint64) {
 
 	totalRefund := refund
 	totalActivityByContract := make(map[common.Address]uint64)
-	totalRefundsByContracts := make(map[common.Address]uint64)
 	currentActivities := st.state.GetCurrentActivities()
 	for _, act := range currentActivities {
 		totalActivityByContract[act.Address] += act.DeltaActivity
 	}
-	var proportion []float64
+
+	proportion := make([]float64, 0, len(currentActivities))
 	for _, act := range currentActivities {
 		proportion = append(proportion, float64(act.DeltaActivity)/float64(totalActivityByContract[act.Address]))
 	}
 
 	for i, act := range currentActivities {
+		totalRefundByContract := float64(totalRefund*st.state.GetRefundsByContract(act.Address)) / float64(st.state.GetRefund())
+		refundAct := uint64(totalRefundByContract * proportion[i])
 		if i == len(currentActivities)-1 {
-			totalRefundsByContracts[act.Address] += refund
-			act.DeltaActivity -= refund
-			act.Activity -= totalRefundsByContracts[act.Address]
-			st.state.SubActivity(act.Address, refund)
-			log.Debug("Refunded contract activity", "activity", refund, "addr", act.Address)
-		} else {
-			totalRefundByContract := float64(totalRefund*st.state.GetRefundsByContract(act.Address)) / float64(st.state.GetRefund())
-			refundAct := uint64(totalRefundByContract * proportion[i])
-			totalRefundsByContracts[act.Address] += refundAct
-			act.DeltaActivity -= refundAct
-			act.Activity -= totalRefundsByContracts[act.Address]
-			st.state.SubActivity(act.Address, refundAct)
-			refund -= refundAct
-			log.Debug("Refunded contract activity", "activity", totalRefundByContract, "addr", act.Address)
+			refundAct = refund
 		}
+		act.DeltaActivity -= refundAct
+		refund -= refundAct
+		log.Debug("Refunded contract activity", "activity", totalRefundByContract, "addr", act.Address)
 	}
 }
 

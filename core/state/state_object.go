@@ -96,7 +96,7 @@ type stateObject struct {
 
 // empty returns whether the account is considered empty.
 func (s *stateObject) empty() bool {
-	return s.data.Nonce == 0 && s.data.Balance.Sign() == 0 && bytes.Equal(s.data.CodeHash, emptyCodeHash) && s.data.Activity == 0
+	return s.data.Nonce == 0 && s.data.Balance.Sign() == 0 && bytes.Equal(s.data.CodeHash, emptyCodeHash)
 }
 
 // newObject creates a state object.
@@ -395,43 +395,6 @@ func (s *stateObject) CommitTrie(db Database) (*trie.NodeSet, error) {
 	return nodes, err
 }
 
-// AddActivity adds activity to s's activity
-// It is used to add received by the contract activity
-func (s *stateObject) AddActivity(amount uint64) {
-	if amount == 0 {
-		if s.empty() {
-			s.touch()
-		}
-		return
-	}
-
-	s.SetActivity(s.Activity() + amount)
-}
-
-// SubActivity remove some amount of activity to s's activity
-func (s *stateObject) SubActivity(amount uint64) {
-	if amount == 0 {
-		if s.empty() {
-			s.touch()
-		}
-		return
-	}
-
-	s.SetActivity(s.Activity() - amount)
-}
-
-func (s *stateObject) SetActivity(amount uint64) {
-	s.db.journal.append(activityChange{
-		account: &s.address,
-		prev:    s.Activity(),
-	})
-	s.setActivity(amount)
-}
-
-func (s *stateObject) setActivity(amount uint64) {
-	s.data.Activity = amount
-}
-
 // AddBalance adds amount to s's balance.
 // It is used to add funds to the destination account of a transfer.
 func (s *stateObject) AddBalance(amount *big.Int) {
@@ -554,10 +517,6 @@ func (s *stateObject) setNonce(nonce uint64) {
 
 func (s *stateObject) CodeHash() []byte {
 	return s.data.CodeHash
-}
-
-func (s *stateObject) Activity() uint64 {
-	return s.data.Activity
 }
 
 func (s *stateObject) Balance() *big.Int {

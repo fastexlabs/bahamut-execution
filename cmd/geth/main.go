@@ -278,6 +278,9 @@ func prepare(ctx *cli.Context) {
 	case ctx.IsSet(utils.FastexChainTestnetFlag.Name):
 		log.Info("Starting Geth on Fastex testnet...")
 
+	case ctx.IsSet(utils.OasisFlag.Name):
+		log.Info("Starting Geth on Fastex Oasis testnet...")
+
 	case ctx.IsSet(utils.RopstenFlag.Name):
 		log.Info("Starting Geth on Ropsten testnet...")
 
@@ -312,12 +315,13 @@ func prepare(ctx *cli.Context) {
 `)
 
 	case !ctx.IsSet(utils.NetworkIdFlag.Name):
-		log.Info("Starting Geth on Ethereum mainnet...")
+		log.Info("Starting Geth on FastexChain mainnet...")
 	}
 	// If we're a full node on mainnet without --cache specified, bump default cache allowance
 	if ctx.String(utils.SyncModeFlag.Name) != "light" && !ctx.IsSet(utils.CacheFlag.Name) && !ctx.IsSet(utils.NetworkIdFlag.Name) {
 		// Make sure we're not on any supported preconfigured testnet either
 		if !ctx.IsSet(utils.RopstenFlag.Name) &&
+			!ctx.IsSet(utils.OasisFlag.Name) &&
 			!ctx.IsSet(utils.SepoliaFlag.Name) &&
 			!ctx.IsSet(utils.RinkebyFlag.Name) &&
 			!ctx.IsSet(utils.GoerliFlag.Name) &&

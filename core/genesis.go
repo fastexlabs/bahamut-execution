@@ -154,6 +154,8 @@ func CommitGenesisState(db ethdb.Database, hash common.Hash) error {
 			genesis = DefaultFastexChainTestnetGenesisBlock()
 		case params.MainnetGenesisHash:
 			genesis = DefaultGenesisBlock()
+		case params.OasisGenesisHash:
+			genesis = DefaultOasisGenesisBlock()
 		case params.RopstenGenesisHash:
 			genesis = DefaultRopstenGenesisBlock()
 		case params.RinkebyGenesisHash:
@@ -236,10 +238,10 @@ func (e *GenesisMismatchError) Error() string {
 // SetupGenesisBlock writes or updates the genesis block in db.
 // The block that will be used is:
 //
-//                          genesis == nil       genesis != nil
-//                       +------------------------------------------
-//     db has no genesis |  main-net default  |  genesis
-//     db has genesis    |  from DB           |  genesis (if compatible)
+//	                     genesis == nil       genesis != nil
+//	                  +------------------------------------------
+//	db has no genesis |  main-net default  |  genesis
+//	db has genesis    |  from DB           |  genesis (if compatible)
 //
 // The stored chain configuration will be updated if it is compatible (i.e. does not
 // specify a fork block below the local head block). In case of a conflict, the
@@ -349,6 +351,8 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return g.Config
 	case ghash == params.MainnetGenesisHash:
 		return params.MainnetChainConfig
+	case ghash == params.OasisGenesisHash:
+		return params.OasisChainConfig
 	case ghash == params.RopstenGenesisHash:
 		return params.RopstenChainConfig
 	case ghash == params.SepoliaGenesisHash:
@@ -458,11 +462,21 @@ func DefaultFastexChainTestnetGenesisBlock() *Genesis {
 func DefaultGenesisBlock() *Genesis {
 	return &Genesis{
 		Config:     params.MainnetChainConfig,
-		Nonce:      66,
-		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
-		GasLimit:   5000,
-		Difficulty: big.NewInt(17179869184),
+		Timestamp:  1682707801,
+		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000001a26A27051C0f6444794c940b776120E6D4172AD40B95772C35c86bA2b5d5cdb0220c7A2A17BE5da59b6F74A932896336089a46d5E0B1E82DbAef2E17057Ea1e0c874bFb6AeC0B5D2D914d8307b0c7c196CdF40400e4323061F7D2A9D1F5C4B8033b32B5A85adBCD1480970f5F75dcee4EAcDBF94FeA2142Dc0a54Cc518EE374f3b4aB58458BAFbc32c60102e1014CB262042060F35C285901652B1950d46E28ef1AdD591399502Bd53EcA6f7FE6d123574A92330000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   30_000_000,
+		Difficulty: big.NewInt(1),
 		Alloc:      decodePrealloc(mainnetAllocData),
+	}
+}
+
+func DefaultOasisGenesisBlock() *Genesis {
+	return &Genesis{
+		Config:     params.OasisChainConfig,
+		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000005913d1ae7397eb2d24d8c99ed455615ad60f9b4f991823ba0cd4cbf3020d925e771922da6545d789303b648d7bf49d6099aad5bf8ba936c45ab685fb0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   30_000_000,
+		Difficulty: big.NewInt(1),
+		Alloc:      decodePrealloc(oasisAllocData),
 	}
 }
 

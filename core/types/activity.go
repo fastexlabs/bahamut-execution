@@ -6,6 +6,5 @@ import "github.com/ethereum/go-ethereum/common"
 
 type Activity struct {
 	Address       common.Address `json:"contract_address"`
-	Activity      uint64         `json:"activity"`
 	DeltaActivity uint64         `json:"delta_activity"`
 }

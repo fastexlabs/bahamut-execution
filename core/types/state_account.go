@@ -31,6 +31,4 @@ type StateAccount struct {
 	Balance  *big.Int
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
-
-	Activity uint64 // the amount of gas used by smart contract
 }

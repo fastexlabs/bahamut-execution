@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -59,15 +58,11 @@ func (evm *EVM) memoryGas(data []byte) (uint64, error) {
 		if rules.IsIstanbul {
 			nonZeroGas = params.TxDataNonZeroGasEIP2028
 		}
-		if (math.MaxUint64-gas)/nonZeroGas < nz {
-			return 0, ErrGasUintOverflow
-		}
+
 		gas += nz * nonZeroGas
 
 		z := uint64(len(data)) - nz
-		if (math.MaxUint64-gas)/params.TxDataZeroGas < z {
-			return 0, ErrGasUintOverflow
-		}
+
 		gas += z * params.TxDataZeroGas
 	}
 
@@ -272,10 +267,8 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 				memGas = 0
 			}
 
-			evm.StateDB.AddActivity(addrCopy, initialGas-contract.Gas-contract.OthersGas+memGas)
 			evm.StateDB.AddActivities(&types.Activity{
 				Address:       addrCopy,
-				Activity:      evm.StateDB.GetActivity(addrCopy),
 				DeltaActivity: initialGas - contract.Gas - contract.OthersGas + memGas,
 			})
 		}
@@ -338,18 +331,8 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 		ret, err = evm.interpreter.Run(contract, input, false)
 		gas = contract.Gas
 
-		memGas, err := evm.memoryGas(input)
-		if err != nil {
-			return nil, gas, err
-		}
-		if caller.Address() != evm.Origin {
-			memGas = 0
-		}
-
-		evm.StateDB.AddActivity(addrCopy, initialGas-contract.Gas-contract.OthersGas+memGas)
 		evm.StateDB.AddActivities(&types.Activity{
 			Address:       addrCopy,
-			Activity:      evm.StateDB.GetActivity(addrCopy),
 			DeltaActivity: initialGas - contract.Gas - contract.OthersGas,
 		})
 	}
@@ -396,10 +379,8 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 		ret, err = evm.interpreter.Run(contract, input, false)
 		gas = contract.Gas
 
-		evm.StateDB.AddActivity(addrCopy, initialGas-contract.Gas-contract.OthersGas)
 		evm.StateDB.AddActivities(&types.Activity{
 			Address:       addrCopy,
-			Activity:      evm.StateDB.GetActivity(addrCopy),
 			DeltaActivity: initialGas - contract.Gas - contract.OthersGas,
 		})
 	}
@@ -462,10 +443,8 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		ret, err = evm.interpreter.Run(contract, input, true)
 		gas = contract.Gas
 
-		evm.StateDB.AddActivity(addrCopy, initialGas-contract.Gas-contract.OthersGas)
 		evm.StateDB.AddActivities(&types.Activity{
 			Address:       addrCopy,
-			Activity:      evm.StateDB.GetActivity(addrCopy),
 			DeltaActivity: initialGas - contract.Gas - contract.OthersGas,
 		})
 	}
@@ -574,10 +553,8 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		}
 	}
 
-	evm.StateDB.AddActivity(address, initialGas-contract.Gas-contract.OthersGas)
 	evm.StateDB.AddActivities(&types.Activity{
 		Address:       address,
-		Activity:      evm.StateDB.GetActivity(address),
 		DeltaActivity: initialGas - contract.Gas - contract.OthersGas,
 	})
 

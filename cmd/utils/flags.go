@@ -119,7 +119,7 @@ var (
 	}
 	NetworkIdFlag = &cli.Uint64Flag{
 		Name:     "networkid",
-		Usage:    "Explicitly set network id (integer)(For testnets: use --ropsten, --rinkeby, --goerli instead)",
+		Usage:    "Explicitly set network id (integer)(For testnets: use --oasis instead)",
 		Value:    ethconfig.Defaults.NetworkId,
 		Category: flags.EthCategory,
 	}
@@ -127,36 +127,48 @@ var (
 		Name:     "testnet",
 		Usage:    "Fastex chain testnet",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 	MainnetFlag = &cli.BoolFlag{
 		Name:     "mainnet",
-		Usage:    "Ethereum mainnet",
+		Aliases:  []string{"sahara"},
+		Usage:    "FastexChain mainnet",
+		Category: flags.EthCategory,
+	}
+	OasisFlag = &cli.BoolFlag{
+		Name:     "oasis",
+		Usage:    "FastexChain Oasis testnet: pre-configured proof-of-authority test network",
 		Category: flags.EthCategory,
 	}
 	RopstenFlag = &cli.BoolFlag{
 		Name:     "ropsten",
 		Usage:    "Ropsten network: pre-configured proof-of-stake test network",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 	RinkebyFlag = &cli.BoolFlag{
 		Name:     "rinkeby",
 		Usage:    "Rinkeby network: pre-configured proof-of-authority test network",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 	GoerliFlag = &cli.BoolFlag{
 		Name:     "goerli",
 		Usage:    "Görli network: pre-configured proof-of-authority test network",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 	SepoliaFlag = &cli.BoolFlag{
 		Name:     "sepolia",
 		Usage:    "Sepolia network: pre-configured proof-of-work test network",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 	KilnFlag = &cli.BoolFlag{
 		Name:     "kiln",
 		Usage:    "Kiln network: pre-configured proof-of-work to proof-of-stake test network",
 		Category: flags.EthCategory,
+		Hidden:   true,
 	}
 
 	// Dev mode
@@ -987,14 +999,12 @@ var (
 var (
 	// TestnetFlags is the flag group of all built-in supported testnets.
 	TestnetFlags = []cli.Flag{
-		FastexChainTestnetFlag,
+		OasisFlag,
 	}
 	// NetworkFlags is the flag group of all built-in supported networks.
-	// NetworkFlags = append([]cli.Flag{
-	// 	MainnetFlag,
-	// }, TestnetFlags...)
-
-	NetworkFlags = append([]cli.Flag{}, TestnetFlags...)
+	NetworkFlags = append([]cli.Flag{
+		MainnetFlag,
+	}, TestnetFlags...)
 
 	// DatabasePathFlags is the flag group of all database path flags.
 	DatabasePathFlags = []cli.Flag{
@@ -1011,6 +1021,9 @@ func MakeDataDir(ctx *cli.Context) string {
 	if path := ctx.String(DataDirFlag.Name); path != "" {
 		if ctx.Bool(FastexChainTestnetFlag.Name) {
 			return filepath.Join(path, "fastex-testnet")
+		}
+		if ctx.Bool(OasisFlag.Name) {
+			return filepath.Join(path, "oasis")
 		}
 		if ctx.Bool(RopstenFlag.Name) {
 			// Maintain compatibility with older Geth configurations storing the
@@ -1077,6 +1090,8 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 		urls = SplitAndTrim(ctx.String(BootnodesFlag.Name))
 	case ctx.Bool(FastexChainTestnetFlag.Name):
 		urls = params.FastexChainTestnetBootnodes
+	case ctx.Bool(OasisFlag.Name):
+		urls = params.OasisBootnodes
 	case ctx.Bool(RopstenFlag.Name):
 		urls = params.RopstenBootnodes
 	case ctx.Bool(SepoliaFlag.Name):
@@ -1539,6 +1554,8 @@ func SetDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "ropsten")
 	case ctx.Bool(FastexChainTestnetFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "fastex-testnet")
+	case ctx.Bool(OasisFlag.Name) && cfg.DataDir == node.DefaultDataDir():
+		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "oasis")
 	case ctx.Bool(RinkebyFlag.Name) && cfg.DataDir == node.DefaultDataDir():
 		cfg.DataDir = filepath.Join(node.DefaultDataDir(), "rinkeby")
 	case ctx.Bool(GoerliFlag.Name) && cfg.DataDir == node.DefaultDataDir():
@@ -1737,7 +1754,7 @@ func CheckExclusive(ctx *cli.Context, args ...interface{}) {
 // SetEthConfig applies eth-related command line flags to the config.
 func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	// Avoid conflicting network flags
-	CheckExclusive(ctx, MainnetFlag, FastexChainTestnetFlag, DeveloperFlag, RopstenFlag, RinkebyFlag, GoerliFlag, SepoliaFlag, KilnFlag)
+	CheckExclusive(ctx, MainnetFlag, FastexChainTestnetFlag, OasisFlag, DeveloperFlag, RopstenFlag, RinkebyFlag, GoerliFlag, SepoliaFlag, KilnFlag)
 	CheckExclusive(ctx, LightServeFlag, SyncModeFlag, "light")
 	CheckExclusive(ctx, DeveloperFlag, ExternalSignerFlag) // Can't use both ephemeral unlocked and external signer
 	if ctx.String(GCModeFlag.Name) == "archive" && ctx.Uint64(TxLookupLimitFlag.Name) != 0 {
@@ -1880,10 +1897,16 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		SetDNSDiscoveryDefaults(cfg, params.FastexChainTestnetGenesisHash)
 	case ctx.Bool(MainnetFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
-			cfg.NetworkId = 1
+			cfg.NetworkId = 5165
 		}
 		cfg.Genesis = core.DefaultGenesisBlock()
 		SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
+	case ctx.Bool(OasisFlag.Name):
+		if !ctx.IsSet(NetworkIdFlag.Name) {
+			cfg.NetworkId = 4090
+		}
+		cfg.Genesis = core.DefaultOasisGenesisBlock()
+		SetDNSDiscoveryDefaults(cfg, params.OasisGenesisHash)
 	case ctx.Bool(RopstenFlag.Name):
 		if !ctx.IsSet(NetworkIdFlag.Name) {
 			cfg.NetworkId = 3
@@ -1978,7 +2001,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 			cfg.Miner.GasPrice = big.NewInt(1)
 		}
 	default:
-		if cfg.NetworkId == 1 {
+		if cfg.NetworkId == 5165 {
 			SetDNSDiscoveryDefaults(cfg, params.MainnetGenesisHash)
 		}
 	}
@@ -2167,6 +2190,8 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 		genesis = core.DefaultFastexChainTestnetGenesisBlock()
 	case ctx.Bool(MainnetFlag.Name):
 		genesis = core.DefaultGenesisBlock()
+	case ctx.Bool(OasisFlag.Name):
+		genesis = core.DefaultOasisGenesisBlock()
 	case ctx.Bool(RopstenFlag.Name):
 		genesis = core.DefaultRopstenGenesisBlock()
 	case ctx.Bool(SepoliaFlag.Name):

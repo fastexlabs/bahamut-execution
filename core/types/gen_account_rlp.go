@@ -22,7 +22,6 @@ func (obj *StateAccount) EncodeRLP(_w io.Writer) error {
 	}
 	w.WriteBytes(obj.Root[:])
 	w.WriteBytes(obj.CodeHash)
-	w.WriteUint64(obj.Activity)
 	w.ListEnd(_tmp0)
 	return w.Flush()
 }

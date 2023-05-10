@@ -12,7 +12,6 @@ func (obj *Activity) EncodeRLP(_w io.Writer) error {
 	w := rlp.NewEncoderBuffer(_w)
 	_tmp0 := w.List()
 	w.WriteBytes(obj.Address[:])
-	w.WriteUint64(obj.Activity)
 	w.WriteUint64(obj.DeltaActivity)
 	w.ListEnd(_tmp0)
 	return w.Flush()

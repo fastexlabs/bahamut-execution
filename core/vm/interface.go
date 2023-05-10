@@ -27,10 +27,6 @@ import (
 type StateDB interface {
 	CreateAccount(common.Address)
 
-	AddActivity(common.Address, uint64)
-	SubActivity(common.Address, uint64)
-	GetActivity(common.Address) uint64
-
 	GetCurrentActivities() []*types.Activity
 	GetRefundsByContract(common.Address) uint64
 

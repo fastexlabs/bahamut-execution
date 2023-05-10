@@ -100,10 +100,6 @@ type (
 	}
 
 	// Changes to individual accounts.
-	activityChange struct {
-		account *common.Address
-		prev    uint64
-	}
 	balanceChange struct {
 		account *common.Address
 		prev    *big.Int
@@ -187,14 +183,6 @@ func (ch touchChange) revert(s *StateDB) {
 }
 
 func (ch touchChange) dirtied() *common.Address {
-	return ch.account
-}
-
-func (ch activityChange) revert(s *StateDB) {
-	s.getStateObject(*ch.account).setActivity(ch.prev)
-}
-
-func (ch activityChange) dirtied() *common.Address {
 	return ch.account
 }
 

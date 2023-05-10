@@ -508,8 +508,6 @@ func dumpState(ctx *cli.Context) error {
 			Root:      account.Root,
 			CodeHash:  account.CodeHash,
 			SecureKey: accIt.Hash().Bytes(),
-
-			Activity: account.Activity,
 		}
 		if !conf.SkipCode && !bytes.Equal(account.CodeHash, emptyCode) {
 			da.Code = rawdb.ReadCode(db, common.BytesToHash(account.CodeHash))
