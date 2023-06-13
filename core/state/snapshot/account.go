@@ -34,7 +34,7 @@ type Account struct {
 	Root     []byte
 	CodeHash []byte
 
-	Deployer []byte
+	Deployer common.Address `rlp:"optional"`
 }
 
 // SlimAccount converts a state.Account content into a slim snapshot account
@@ -42,15 +42,13 @@ func SlimAccount(nonce uint64, balance *big.Int, root common.Hash, codehash []by
 	slim := Account{
 		Nonce:    nonce,
 		Balance:  balance,
+		Deployer: deployer,
 	}
 	if root != emptyRoot {
 		slim.Root = root[:]
 	}
 	if !bytes.Equal(codehash, emptyCode[:]) {
 		slim.CodeHash = codehash
-	}
-	if deployer != (common.Address{}) {
-		slim.Deployer = deployer[:]
 	}
 
 	return slim
