@@ -410,6 +410,9 @@ func (st *StateTransition) refundActivity(refund uint64) {
 		if i == len(currentActivities)-1 {
 			refundAct = refund
 		}
+		if refundAct > act.DeltaActivity {
+			refundAct = act.DeltaActivity
+		}
 		act.DeltaActivity -= refundAct
 		refund -= refundAct
 		log.Debug("Refunded contract activity", "activity", totalRefundByContract, "addr", act.Address)

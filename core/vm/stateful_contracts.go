@@ -62,12 +62,12 @@ var functionSignatureRegex = regexp.MustCompile(`[\w]+\(((([\w]+)?)|((([\w]+),)+
 
 type statefulPrecompiledFunction func(evm *EVM, caller ContractRef, addr common.Address, input []byte, gas uint64, readOnly bool) (ret []byte, leftOverGas uint64, err error)
 
-type statefulPrecomiledContractWithSelectors struct {
+type statefulPrecompiledContractWithSelectors struct {
 	fallback  statefulPrecompiledFunction
 	functions map[Selector]statefulPrecompiledFunction
 }
 
-func (sc *statefulPrecomiledContractWithSelectors) Run(evm *EVM, caller ContractRef, addr common.Address, input []byte, gas uint64, readOnly bool) (ret []byte, leftOverGas uint64, err error) {
+func (sc *statefulPrecompiledContractWithSelectors) Run(evm *EVM, caller ContractRef, addr common.Address, input []byte, gas uint64, readOnly bool) (ret []byte, leftOverGas uint64, err error) {
 	if len(input) == 0 && sc.fallback != nil {
 		return sc.fallback(evm, caller, addr, nil, gas, readOnly)
 	}
@@ -99,7 +99,7 @@ func NewStatefulPrecompiledFunctionWithSelectors(fallback statefulPrecompiledFun
 		copy(selector[:], hash[:4])
 		functions[selector] = function
 	}
-	return &statefulPrecomiledContractWithSelectors{
+	return &statefulPrecompiledContractWithSelectors{
 		fallback:  fallback,
 		functions: functions,
 	}

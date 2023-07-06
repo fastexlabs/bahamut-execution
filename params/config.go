@@ -104,6 +104,7 @@ var (
 		MuirGlacierBlock:              big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
+		FCIP2Block:                    big.NewInt(536562), // 2023-07-12 08:00:07 UTC
 		TerminalTotalDifficulty:       MainnetTerminalTotalDifficulty,
 		TerminalTotalDifficultyPassed: false,
 		Clique: &CliqueConfig{
@@ -134,6 +135,7 @@ var (
 		MuirGlacierBlock:              big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
+		FCIP2Block:                    big.NewInt(372600), // 2023-06-23 09:03:12 UTC
 		TerminalTotalDifficultyPassed: false,
 		Clique: &CliqueConfig{
 			Period: 12,
@@ -500,6 +502,7 @@ func (c *ChainConfig) String() string {
 	}
 	banner += fmt.Sprintf(" - Berlin:                      %-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/berlin.md)\n", c.BerlinBlock)
 	banner += fmt.Sprintf(" - London:                      %-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/london.md)\n", c.LondonBlock)
+	banner += fmt.Sprintf(" - FCIP 2:                      %-8v\n", c.FCIP2Block)
 	if c.ArrowGlacierBlock != nil {
 		banner += fmt.Sprintf(" - Arrow Glacier:               %-8v (https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/arrow-glacier.md)\n", c.ArrowGlacierBlock)
 	}
