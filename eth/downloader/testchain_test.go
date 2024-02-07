@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // Test chain parameters.
@@ -38,11 +39,12 @@ var (
 	testAddress = crypto.PubkeyToAddress(testKey.PublicKey)
 	testDB      = rawdb.NewMemoryDatabase()
 
-	testGspec = core.Genesis{
+	testGspec = &core.Genesis{
+		Config:  params.TestChainConfig,
 		Alloc:   core.GenesisAlloc{testAddress: {Balance: big.NewInt(1000000000000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	testGenesis = testGspec.MustCommit(testDB)
+	testGenesis = testGspec.MustCommit(testDB, trie.NewDatabase(testDB, trie.HashDefaults))
 )
 
 // The common prefix of all test chains:
@@ -159,7 +161,7 @@ func (tc *testChain) copy(newlen int) *testChain {
 // contains a transaction and every 5th an uncle to allow testing correct block
 // reassembly.
 func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool) {
-	blocks, _ := core.GenerateChain(params.TestChainConfig, parent, ethash.NewFaker(), testDB, n, func(i int, block *core.BlockGen) {
+	blocks, _ := core.GenerateChain(testGspec.Config, parent, ethash.NewFaker(), testDB, n, func(i int, block *core.BlockGen) {
 		block.SetCoinbase(common.Address{seed})
 		// If a heavy chain is requested, delay blocks to raise difficulty
 		if heavy {
@@ -167,7 +169,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 		}
 		// Include transactions to the miner to make blocks more interesting.
 		if parent == tc.blocks[0] && i%22 == 0 {
-			signer := types.MakeSigner(params.TestChainConfig, block.Number())
+			signer := types.MakeSigner(params.TestChainConfig, block.Number(), block.Timestamp())
 			tx, err := types.SignTx(types.NewTransaction(block.TxNonce(testAddress), common.Address{seed}, big.NewInt(1000), params.TxGas, block.BaseFee(), nil), signer, testKey)
 			if err != nil {
 				panic(err)
@@ -216,10 +218,7 @@ func newTestBlockchain(blocks []*types.Block) *core.BlockChain {
 		if pregenerated {
 			panic("Requested chain generation outside of init")
 		}
-		db := rawdb.NewMemoryDatabase()
-		testGspec.MustCommit(db)
-
-		chain, err := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+		chain, err := core.NewBlockChain(rawdb.NewMemoryDatabase(), nil, testGspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		if err != nil {
 			panic(err)
 		}

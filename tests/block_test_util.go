@@ -24,11 +24,12 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -37,6 +38,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
 )
 
 // A BlockTest checks handling of entire blocks.
@@ -69,23 +73,27 @@ type btBlock struct {
 //go:generate go run github.com/fjl/gencodec -type btHeader -field-override btHeaderMarshaling -out gen_btheader.go
 
 type btHeader struct {
-	Bloom            types.Bloom
-	Coinbase         common.Address
-	MixHash          common.Hash
-	Nonce            types.BlockNonce
-	Number           *big.Int
-	Hash             common.Hash
-	ParentHash       common.Hash
-	ReceiptTrie      common.Hash
-	StateRoot        common.Hash
-	TransactionsTrie common.Hash
-	UncleHash        common.Hash
-	ExtraData        []byte
-	Difficulty       *big.Int
-	GasLimit         uint64
-	GasUsed          uint64
-	Timestamp        uint64
-	BaseFeePerGas    *big.Int
+	Bloom                 types.Bloom
+	Coinbase              common.Address
+	MixHash               common.Hash
+	Nonce                 types.BlockNonce
+	Number                *big.Int
+	Hash                  common.Hash
+	ParentHash            common.Hash
+	ReceiptTrie           common.Hash
+	StateRoot             common.Hash
+	TransactionsTrie      common.Hash
+	UncleHash             common.Hash
+	ExtraData             []byte
+	Difficulty            *big.Int
+	GasLimit              uint64
+	GasUsed               uint64
+	Timestamp             uint64
+	BaseFeePerGas         *big.Int
+	WithdrawalsRoot       *common.Hash
+	BlobGasUsed           *uint64
+	ExcessBlobGas         *uint64
+	ParentBeaconBlockRoot *common.Hash
 }
 
 type btHeaderMarshaling struct {
@@ -96,38 +104,51 @@ type btHeaderMarshaling struct {
 	GasUsed       math.HexOrDecimal64
 	Timestamp     math.HexOrDecimal64
 	BaseFeePerGas *math.HexOrDecimal256
+	BlobGasUsed   *math.HexOrDecimal64
+	ExcessBlobGas *math.HexOrDecimal64
 }
 
-func (t *BlockTest) Run(snapshotter bool) error {
+func (t *BlockTest) Run(snapshotter bool, scheme string, tracer vm.EVMLogger) error {
 	config, ok := Forks[t.json.Network]
 	if !ok {
 		return UnsupportedForkError{t.json.Network}
 	}
-
 	// import pre accounts & construct test genesis block & state root
-	db := rawdb.NewMemoryDatabase()
-	gblock, err := t.genesis(config).Commit(db)
+	var (
+		db    = rawdb.NewMemoryDatabase()
+		tconf = &trie.Config{}
+	)
+	if scheme == rawdb.PathScheme {
+		tconf.PathDB = pathdb.Defaults
+	} else {
+		tconf.HashDB = hashdb.Defaults
+	}
+	// Commit genesis state
+	gspec := t.genesis(config)
+	triedb := trie.NewDatabase(db, tconf)
+	gblock, err := gspec.Commit(db, triedb)
 	if err != nil {
 		return err
 	}
+	triedb.Close() // close the db to prevent memory leak
+
 	if gblock.Hash() != t.json.Genesis.Hash {
 		return fmt.Errorf("genesis block hash doesn't match test: computed=%x, test=%x", gblock.Hash().Bytes()[:6], t.json.Genesis.Hash[:6])
 	}
 	if gblock.Root() != t.json.Genesis.StateRoot {
 		return fmt.Errorf("genesis block state root does not match test: computed=%x, test=%x", gblock.Root().Bytes()[:6], t.json.Genesis.StateRoot[:6])
 	}
-	var engine consensus.Engine
-	if t.json.SealEngine == "NoProof" {
-		engine = ethash.NewFaker()
-	} else {
-		engine = ethash.NewShared()
-	}
-	cache := &core.CacheConfig{TrieCleanLimit: 0}
+	// Wrap the original engine within the beacon-engine
+	engine := beacon.New(ethash.NewFaker())
+
+	cache := &core.CacheConfig{TrieCleanLimit: 0, StateScheme: scheme}
 	if snapshotter {
 		cache.SnapshotLimit = 1
 		cache.SnapshotWait = true
 	}
-	chain, err := core.NewBlockChain(db, cache, config, engine, vm.Config{}, nil, nil)
+	chain, err := core.NewBlockChain(db, cache, gspec, nil, engine, vm.Config{
+		Tracer: tracer,
+	}, nil, nil)
 	if err != nil {
 		return err
 	}
@@ -150,7 +171,7 @@ func (t *BlockTest) Run(snapshotter bool) error {
 	}
 	// Cross-check the snapshot-to-hash against the trie hash
 	if snapshotter {
-		if err := chain.Snapshots().Verify(chain.CurrentBlock().Root()); err != nil {
+		if err := chain.Snapshots().Verify(chain.CurrentBlock().Root); err != nil {
 			return err
 		}
 	}
@@ -159,32 +180,35 @@ func (t *BlockTest) Run(snapshotter bool) error {
 
 func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 	return &core.Genesis{
-		Config:     config,
-		Nonce:      t.json.Genesis.Nonce.Uint64(),
-		Timestamp:  t.json.Genesis.Timestamp,
-		ParentHash: t.json.Genesis.ParentHash,
-		ExtraData:  t.json.Genesis.ExtraData,
-		GasLimit:   t.json.Genesis.GasLimit,
-		GasUsed:    t.json.Genesis.GasUsed,
-		Difficulty: t.json.Genesis.Difficulty,
-		Mixhash:    t.json.Genesis.MixHash,
-		Coinbase:   t.json.Genesis.Coinbase,
-		Alloc:      t.json.Pre,
-		BaseFee:    t.json.Genesis.BaseFeePerGas,
+		Config:        config,
+		Nonce:         t.json.Genesis.Nonce.Uint64(),
+		Timestamp:     t.json.Genesis.Timestamp,
+		ParentHash:    t.json.Genesis.ParentHash,
+		ExtraData:     t.json.Genesis.ExtraData,
+		GasLimit:      t.json.Genesis.GasLimit,
+		GasUsed:       t.json.Genesis.GasUsed,
+		Difficulty:    t.json.Genesis.Difficulty,
+		Mixhash:       t.json.Genesis.MixHash,
+		Coinbase:      t.json.Genesis.Coinbase,
+		Alloc:         t.json.Pre,
+		BaseFee:       t.json.Genesis.BaseFeePerGas,
+		BlobGasUsed:   t.json.Genesis.BlobGasUsed,
+		ExcessBlobGas: t.json.Genesis.ExcessBlobGas,
 	}
 }
 
-/* See https://github.com/ethereum/tests/wiki/Blockchain-Tests-II
+/*
+See https://github.com/ethereum/tests/wiki/Blockchain-Tests-II
 
-   Whether a block is valid or not is a bit subtle, it's defined by presence of
-   blockHeader, transactions and uncleHeaders fields. If they are missing, the block is
-   invalid and we must verify that we do not accept it.
+	Whether a block is valid or not is a bit subtle, it's defined by presence of
+	blockHeader, transactions and uncleHeaders fields. If they are missing, the block is
+	invalid and we must verify that we do not accept it.
 
-   Since some tests mix valid and invalid blocks we need to check this for every block.
+	Since some tests mix valid and invalid blocks we need to check this for every block.
 
-   If a block is invalid it does not necessarily fail the test, if it's invalidness is
-   expected we are expected to ignore it and continue processing and then validate the
-   post state.
+	If a block is invalid it does not necessarily fail the test, if it's invalidness is
+	expected we are expected to ignore it and continue processing and then validate the
+	post state.
 */
 func (t *BlockTest) insertBlocks(blockchain *core.BlockChain) ([]btBlock, error) {
 	validBlocks := make([]btBlock, 0)
@@ -272,6 +296,21 @@ func validateHeader(h *btHeader, h2 *types.Header) error {
 	if h.Timestamp != h2.Time {
 		return fmt.Errorf("timestamp: want: %v have: %v", h.Timestamp, h2.Time)
 	}
+	if !reflect.DeepEqual(h.BaseFeePerGas, h2.BaseFee) {
+		return fmt.Errorf("baseFeePerGas: want: %v have: %v", h.BaseFeePerGas, h2.BaseFee)
+	}
+	if !reflect.DeepEqual(h.WithdrawalsRoot, h2.WithdrawalsHash) {
+		return fmt.Errorf("withdrawalsRoot: want: %v have: %v", h.WithdrawalsRoot, h2.WithdrawalsHash)
+	}
+	if !reflect.DeepEqual(h.BlobGasUsed, h2.BlobGasUsed) {
+		return fmt.Errorf("blobGasUsed: want: %v have: %v", h.BlobGasUsed, h2.BlobGasUsed)
+	}
+	if !reflect.DeepEqual(h.ExcessBlobGas, h2.ExcessBlobGas) {
+		return fmt.Errorf("excessBlobGas: want: %v have: %v", h.ExcessBlobGas, h2.ExcessBlobGas)
+	}
+	if !reflect.DeepEqual(h.ParentBeaconBlockRoot, h2.ParentBeaconRoot) {
+		return fmt.Errorf("parentBeaconBlockRoot: want: %v have: %v", h.ParentBeaconBlockRoot, h2.ParentBeaconRoot)
+	}
 	return nil
 }
 
@@ -306,8 +345,8 @@ func (t *BlockTest) validateImportedHeaders(cm *core.BlockChain, validBlocks []b
 	// block-by-block, so we can only validate imported headers after
 	// all blocks have been processed by BlockChain, as they may not
 	// be part of the longest chain until last block is imported.
-	for b := cm.CurrentBlock(); b != nil && b.NumberU64() != 0; b = cm.GetBlockByHash(b.Header().ParentHash) {
-		if err := validateHeader(bmap[b.Hash()].BlockHeader, b.Header()); err != nil {
+	for b := cm.CurrentBlock(); b != nil && b.Number.Uint64() != 0; b = cm.GetBlockByHash(b.ParentHash).Header() {
+		if err := validateHeader(bmap[b.Hash()].BlockHeader, b); err != nil {
 			return fmt.Errorf("imported block header validation failed: %v", err)
 		}
 	}
